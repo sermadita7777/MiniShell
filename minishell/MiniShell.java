@@ -1,13 +1,17 @@
 package minishell;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
+import tokenizer.MissingFileException;
 import tokenizer.TCommand;
 import tokenizer.TLine;
 import tokenizer.Tokenizer;
-import tokenizer.MissingFileException;
 
 public class MiniShell {
     private static final String prompt="ms$";
@@ -39,9 +43,12 @@ public class MiniShell {
                         break;
                     } else if (cmdName.equals("cd")) {
                         handleCd(cmd);
+                    } else {
+                        executeExternalCommand(cmd);
                     }
-                }
 
+                    System.out.println(line);
+                }
             } catch (MissingFileException e) {
                 e.printStackTrace();
             }
@@ -68,6 +75,36 @@ public class MiniShell {
         }
 
         System.out.println("Directorio actual: "+this.currentDirectory.getAbsolutePath());
+    }
+
+    private void executeExternalCommand(TCommand cmd){
+        try {
+            List<String> command=new ArrayList<>();
+            command.add("cmd.exe");
+            command.add("/c");
+            command.addAll(cmd.getArgv());
+
+            ProcessBuilder pb=new ProcessBuilder(command);
+            pb.directory(this.currentDirectory);
+            pb.redirectErrorStream(true);
+
+            Process p=pb.start();
+
+            try (BufferedReader br=new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+                String line;
+                while((line=br.readLine()) !=null) {
+                    System.out.println(line);
+                }
+            }
+
+            int exitCode=p.waitFor();
+            System.out.println("Finalizado con código: "+exitCode);
+        } catch (IOException e) {
+            System.out.println("Error al ejecutrar comando: "+e.getMessage());
+        } catch (InterruptedException e) {
+            System.err.println("Ejecución interrumpida");
+            Thread.currentThread().interrupt();
+        }
     }
 
     public static void main(String[] args) {
