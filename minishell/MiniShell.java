@@ -48,7 +48,7 @@ public class MiniShell {
 						handleCd(cmd);
 						
 					} else {
-						executeExternalCommand(cmd, line);
+						executeExternalCommand(line);
 					}
 					
 					
@@ -88,55 +88,53 @@ public class MiniShell {
 	}
 	
 	
-	private void executeExternalCommand(TCommand cmd, TLine line){
+	private void executeExternalCommand(TLine line){
 		try {
 			
-			//Filtar simbolos de redirección??
-			List<String> cleanArgs=new ArrayList<>();
 			
-			for(String arg: cmd.getArgv()) {
-				if(!arg.equals(">") && !arg.equals(">>") && !arg.equals("<") && !arg.equals("2>") && !arg.equals("2>>")) {
-					cleanArgs.add(arg);
+			int n  =line.getNcommands();
+			
+			List<ProcessBuilder> builders=new ArrayList<>();
+			
+			//Crear un PB para cada comando
+			for(TCommand cmd: line.getCommands()) {
+				
+				//Filtar simbolos de redirección??
+				List<String> cleanArgs=new ArrayList<>();
+				
+				for(String arg: cmd.getArgv()) {
+					if(!arg.equals(">") && !arg.equals(">>") && !arg.equals("<") && !arg.equals("2>") && !arg.equals("2>>")) {
+						cleanArgs.add(arg);
+					}
 				}
-			}
-			
-			List<String> command=new ArrayList<>();
-			//VERIFICACIÓN SISTEMA OPERATIVO?? 
-			
-			/**List<String> args=cmd.getArgv();
-			String os=System.getProperty("os.name").toLowerCase();
-			
-			if(os.contains("win")) {
+				
+				List<String> command=new ArrayList<>();
+				
 				command.add("cmd.exe");
 				command.add("/c");
-				command.add(String.join(" ", args));
-			} else {
-				command.add(args.get(0));
-			} if(args.size()>1) {
-				command.addAll(args.subList(1, args.size()));
-			}*/
-			
-			command.add("cmd.exe");
-			command.add("/c");
-			command.addAll(cleanArgs);
-			
-			
-			ProcessBuilder pb=new ProcessBuilder(command);
-			pb.directory(this.currentDirectory);
-			pb.redirectErrorStream(false); //salida y error por separado, de momento
-			
+				command.addAll(cleanArgs);
+				
+				ProcessBuilder pb=new ProcessBuilder(command);
+				pb.directory(this.currentDirectory);
+				pb.redirectErrorStream(false); 
+				builders.add(pb);
+				
+			}
+
 			//Redirección de entrada (>)
 			if(line.getRedirectInput()!=null) {
-				pb.redirectInput(new File(line.getRedirectInput()));
+				builders.get(0).redirectInput(new File(line.getRedirectInput()));
 			}
+			
+			ProcessBuilder lst=builders.get(n-1);
 			
 			//Redirección de salida (> o >>)
 			if(line.getRedirectOutput()!=null) {
 				File outFile=new File(line.getRedirectOutput());
 				if(line.isAppendOutput()) {
-					pb.redirectOutput(ProcessBuilder.Redirect.appendTo(outFile));
+					lst.redirectOutput(ProcessBuilder.Redirect.appendTo(outFile));
 				} else {
-					pb.redirectOutput(ProcessBuilder.Redirect.to(outFile));
+					lst.redirectOutput(ProcessBuilder.Redirect.to(outFile));
 				}
 			}
 			
@@ -144,17 +142,21 @@ public class MiniShell {
 			if(line.getRedirectError()!=null) {
 				File errFile=new File(line.getRedirectError());
 				if(line.isAppendError()) {
-					pb.redirectError(ProcessBuilder.Redirect.appendTo(errFile));
+					lst.redirectError(ProcessBuilder.Redirect.appendTo(errFile));
 				} else {
-					pb.redirectError(ProcessBuilder.Redirect.to(errFile));
+					lst.redirectError(ProcessBuilder.Redirect.to(errFile));
 				}
 			}
-				Process p=pb.start();
-				
+			
+			List<Process> processes=ProcessBuilder.startPipeline(builders);
+			
+			Process lstProcess=processes.get(processes.size()-1);
+			
 				//Si no hay redirección se muestra
 				
+				//salida estandar
 				if(line.getRedirectOutput()==null) {
-					try(BufferedReader br=new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+					try(BufferedReader br=new BufferedReader(new InputStreamReader(lstProcess.getInputStream()))) {
 						String lineOut;
 						while((lineOut=br.readLine()) !=null) {
 							System.out.println(lineOut);
@@ -162,21 +164,23 @@ public class MiniShell {
 					}
 				}
 				
+				//salida error
 				if(line.getRedirectError()==null) {
-					try(BufferedReader br=new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+					try(BufferedReader br=new BufferedReader(new InputStreamReader(lstProcess.getErrorStream()))) {
 						String lineErr;
 						while((lineErr=br.readLine()) !=null) {
-							System.out.println(lineErr);
+							System.err.println(lineErr);
 						}
 					}
 				}
 		
-				
-				int exitCode=p.waitFor();
-				System.out.println("Finalizado con código: "+exitCode);
+
+			for(Process p:processes) {
+				p.waitFor();
+			}
 				
 		} catch (IOException e) {
-			System.out.println("Error al ejecutrar comando: "+e.getMessage());
+			System.err.println("Error al ejecutar comando: "+e.getMessage());
 		} catch (InterruptedException e) {
 			System.err.println("Ejecución interrumpida");
 			Thread.currentThread().interrupt();
