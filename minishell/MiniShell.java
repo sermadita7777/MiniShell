@@ -183,12 +183,19 @@ public class MiniShell {
 			}
 			
 			//Esperar que los procesos foreground terminen
-			for(Process p:processes) {
-				p.waitFor();
+			if(!line.isBackground()) {
+				for(Process p:processes) {
+					p.waitFor();
+				}
 			}
 				
 		} catch (IOException e) {
-			System.err.println("Error al ejecutar comando: "+e.getMessage());
+			//Limpieza visual en mensajes de error
+			if(e.getLocalizedMessage().contains("CreatePorcess error=2")) {
+				System.err.println("Comando no encontrado o no válido,");
+			} else {
+				System.err.println("Error al ejecutar el comando: "+e.getMessage());
+			}
 		} catch (InterruptedException e) {
 			System.err.println("Ejecución interrumpida");
 			Thread.currentThread().interrupt();
