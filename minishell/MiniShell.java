@@ -148,12 +148,17 @@ public class MiniShell {
 				}
 			}
 			
+			//Ejecución con o sin pipes
+			
 			List<Process> processes=ProcessBuilder.startPipeline(builders);
 			
 			Process lstProcess=processes.get(processes.size()-1);
 			
-				//Si no hay redirección se muestra
-				
+			//Identificación de background o foreground
+			if(line.isBackground()) {
+				long PID=lstProcess.pid();
+				System.out.println("Proceso ["+PID+"] ejecutándose en segundo plano...");
+			} else {
 				//salida estandar
 				if(line.getRedirectOutput()==null) {
 					try(BufferedReader br=new BufferedReader(new InputStreamReader(lstProcess.getInputStream()))) {
@@ -161,6 +166,7 @@ public class MiniShell {
 						while((lineOut=br.readLine()) !=null) {
 							System.out.println(lineOut);
 						}
+						br.close();
 					}
 				}
 				
@@ -171,10 +177,12 @@ public class MiniShell {
 						while((lineErr=br.readLine()) !=null) {
 							System.err.println(lineErr);
 						}
+						br.close();
 					}
-				}
-		
-
+				}		
+			}
+			
+			//Esperar que los procesos foreground terminen
 			for(Process p:processes) {
 				p.waitFor();
 			}
