@@ -75,16 +75,23 @@ public class MiniShell {
 		if (args.size() < 2) {
 			this.currentDirectory = new File(System.getProperty("user.home"));
 		} else {
-			File targetDir = new File(args.get(1));
+			String pathArg = args.get(1);
+			File targetDir = new File(pathArg);
 
 			if (!targetDir.isAbsolute()) {
 				targetDir = new File(this.currentDirectory, args.get(1));
 			}
 
+			try {
+				targetDir = targetDir.getCanonicalFile();
+			} catch (IOException e) {
+				System.err.println("Error al acceder al directorio: " + e.getMessage());
+			}
+
 			if (targetDir.exists() && targetDir.isDirectory()) {
 				this.currentDirectory = targetDir;
 			} else {
-				System.err.println("No existe el directorio: " + args.get(1));
+				System.err.println("No existe el directorio: " + pathArg);
 			}
 		}
 
